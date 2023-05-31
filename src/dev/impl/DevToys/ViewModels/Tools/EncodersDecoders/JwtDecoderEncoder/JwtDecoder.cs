@@ -48,7 +48,7 @@ namespace DevToys.ViewModels.Tools.EncodersDecoders.JwtDecoderEncoder
                 var handler = new JwtSecurityTokenHandler();
                 JwtSecurityToken jwtSecurityToken = handler.ReadJwtToken(tokenParameters.Token);
                 tokenResult.Header = JsonHelper.Format(jwtSecurityToken.Header.SerializeToJson(), Indentation.TwoSpaces, false);
-                tokenResult.Payload = JsonHelper.Format(jwtSecurityToken.Payload.SerializeToJson(), Indentation.TwoSpaces, false);
+                tokenResult.Payload = AnnotateDates(JsonHelper.Format(jwtSecurityToken.Payload.SerializeToJson(), Indentation.TwoSpaces, false));
                 tokenResult.TokenAlgorithm = tokenParameters.TokenAlgorithm;
 
                 if (decodeParameters.ValidateSignature)
@@ -67,6 +67,38 @@ namespace DevToys.ViewModels.Tools.EncodersDecoders.JwtDecoderEncoder
             }
 
             return tokenResult;
+        }
+
+        /// <summary>
+        /// Takes an already JSON-serialized and formatted token payload,
+        /// identifies fields representing dates,
+        /// and adds a comment displaying the date in a human-readable form (in the local time zone)
+        /// on the same line as the value.
+        /// </summary>
+        private string AnnotateDates(string jsonSerializedPayload)
+        {
+            string result = string.Empty;
+
+            foreach (string line in jsonSerializedPayload.Split(Environment.NewLine))
+            {
+                string thisLine = line;
+                if (thisLine.Split(':').LastOrDefault()?.TrimEnd(',') is { } date && long.TryParse(date, out long timestamp))
+                {
+                    try
+                    {
+                        DateTimeOffset dateTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime();
+                        thisLine = $"{thisLine} // {dateTime}";
+                    }
+                    catch
+                    {
+                        // Can't convert this long to a DateTime, ignore it.
+                    }
+                }
+
+                result += $"{thisLine}{Environment.NewLine}";
+            }
+
+            return result;
         }
 
         /// <summary>
